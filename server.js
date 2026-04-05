@@ -19,17 +19,7 @@ function appendEvent(event) {
 }
 
 function readEvents() {
-  ensureDataDir();
-  if (!fs.existsSync(EVENTS_FILE)) return [];
-  const raw = fs.readFileSync(EVENTS_FILE, "utf8").trim();
-  if (!raw) return [];
-  return raw.split("\n").map((line) => {
-    try {
-      return JSON.parse(line);
-    } catch {
-      return null;
-    }
-  }).filter(Boolean);
+  return []; 
 }
 
 function aggregateStats(events) {
