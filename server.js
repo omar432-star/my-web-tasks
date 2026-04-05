@@ -1,93 +1,55 @@
-const fs = require("fs");
-const path = require("path");
-const readline = require("readline");
 const express = require("express");
 const cors = require("cors");
-const rateLimit = require("express-rate-limit");
-
-const PORT = process.env.PORT || 3847;
-const DATA_DIR = path.join(__dirname, "data");
-const EVENTS_FILE = path.join(DATA_DIR, "events.jsonl");
-
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-
-const collectorLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: { error: "Too many requests from this IP" }
-});
+const path = require("path");
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: "10kb" }));
+app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-async function getStats() {
-  const visitors = new Set();
-  const sessions = new Set();
-  const pageViews = new Map();
-  const timeBySession = new Map();
-  let eventCount = 0;
+// تخزين مؤقت في الرامات عشان Vercel يوافق يشغل الكود
+let events = [];
 
-  if (!fs.existsSync(EVENTS_FILE)) return null;
-
-  const fileStream = fs.createReadStream(EVENTS_FILE);
-  const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
-
-  for await (const line of rl) {
-    try {
-      const e = JSON.parse(line);
-      eventCount++;
-      if (e.visitorId) visitors.add(e.visitorId);
-      if (e.sessionId) sessions.add(e.sessionId);
-      if (e.type === "pageview" && e.path) {
-        pageViews.set(e.path, (pageViews.get(e.path) || 0) + 1);
-      }
-      if (e.type === "time" && e.sessionId && e.seconds) {
-        timeBySession.set(e.sessionId, (timeBySession.get(e.sessionId) || 0) + e.seconds);
-      }
-    } catch (err) { continue; }
-  }
-
-  const durations = [...timeBySession.values()];
-  const avgSession = durations.length ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : 0;
-
-  return {
-    uniqueVisitors: visitors.size,
-    sessions: sessions.size,
-    totalPageviews: [...pageViews.values()].reduce((a, b) => a + b, 0),
-    avgSessionSeconds: avgSession,
-    pages: [...pageViews.entries()].map(([path, views]) => ({ path, views })).sort((a, b) => b.views - a.views),
-    eventCount
-  };
-}
-
-app.post("/api/collect", collectorLimit, (req, res) => {
+app.post("/api/collect", (req, res) => {
   const { type, path, visitorId, sessionId, seconds } = req.body;
-  if (!type || !visitorId || !sessionId) return res.status(400).end();
-
-  const entry = JSON.stringify({
-    type,
-    path: String(path || "/").slice(0, 500),
-    visitorId: String(visitorId).slice(0, 64),
-    sessionId: String(sessionId).slice(0, 64),
-    seconds: Number(seconds) || 0,
-    ts: Date.now()
-  }) + "\n";
-
-  fs.appendFile(EVENTS_FILE, entry, (err) => {
-    if (err) console.error("Save error:", err);
-  });
+  
+  if (type && visitorId && sessionId) {
+    events.push({
+      type,
+      path: path || "/",
+      visitorId,
+      sessionId,
+      seconds: seconds || 0,
+      ts: Date.now()
+    });
+  }
+  
+  // حفظ آخر 1000 حدث فقط عشان الرامات ماتتمليش
+  if (events.length > 1000) events.shift();
+  
   res.status(204).end();
 });
 
-app.get("/api/stats", async (req, res) => {
-  try {
-    const stats = await getStats();
-    res.json(stats || { uniqueVisitors: 0, sessions: 0, totalPageviews: 0, avgSessionSeconds: 0, pages: [], eventCount: 0 });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+app.get("/api/stats", (req, res) => {
+  const visitors = new Set(events.map(e => e.visitorId));
+  const sessions = new Set(events.map(e => e.sessionId));
+  const pageViews = events.filter(e => e.type === "pageview");
+  
+  const pagesMap = {};
+  pageViews.forEach(pv => {
+    pagesMap[pv.path] = (pagesMap[pv.path] || 0) + 1;
+  });
+
+  const stats = {
+    uniqueVisitors: visitors.size,
+    sessions: sessions.size,
+    totalPageviews: pageViews.length,
+    pages: Object.entries(pagesMap).map(([path, views]) => ({ path, views })),
+    eventCount: events.length
+  };
+  
+  res.json(stats);
 });
 
-app.listen(PORT, () => console.log(`Analytics running on http://localhost:${PORT}`));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
