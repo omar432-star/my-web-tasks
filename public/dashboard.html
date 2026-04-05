@@ -127,12 +127,15 @@
       <tbody></tbody>
     </table>
 
-    <script>function formatDuration(sec) {
+    <script>
+      function formatDuration(sec) {
   if (!sec || isNaN(sec) || sec <= 0) return "0s"; 
   
-  if (sec < 60) return sec + "s";
-  var m = Math.floor(sec / 60);
-  var s = sec % 60;
+  var totalSeconds = Math.round(sec); // تقريب الثواني لأقرب رقم صحيح
+  if (totalSeconds < 60) return totalSeconds + "s";
+  
+  var m = Math.floor(totalSeconds / 60);
+  var s = totalSeconds % 60;
   return m + "m " + (s ? s + "s" : "");
 }
       async function load() {
