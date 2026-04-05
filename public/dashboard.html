@@ -127,14 +127,14 @@
       <tbody></tbody>
     </table>
 
-    <script>
-      function formatDuration(sec) {
-        if (sec < 60) return sec + "s";
-        var m = Math.floor(sec / 60);
-        var s = sec % 60;
-        return m + "m " + (s ? s + "s" : "");
-      }
-
+    <script>function formatDuration(sec) {
+  if (!sec || isNaN(sec) || sec <= 0) return "0s"; 
+  
+  if (sec < 60) return sec + "s";
+  var m = Math.floor(sec / 60);
+  var s = sec % 60;
+  return m + "m " + (s ? s + "s" : "");
+}
       async function load() {
         var errEl = document.getElementById("error");
         errEl.hidden = true;
