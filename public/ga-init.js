@@ -3,7 +3,7 @@
  * Google Analytics → Admin → Data streams → choose stream → Measurement ID (G-xxxxxxxxxx)
  */
 (function () {
-  var GA_MEASUREMENT_ID = "G-XXXXXXXXXX";
+  var GA_MEASUREMENT_ID = "G-40J694HLFM";
 
   if (!GA_MEASUREMENT_ID || GA_MEASUREMENT_ID.indexOf("XXXX") !== -1) {
     return;
